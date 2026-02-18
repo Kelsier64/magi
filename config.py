@@ -5,3 +5,4 @@ SHOW_THOUGHTS = False
 
 # Control visibility of tool calls
 SHOW_TOOL_CALLS = False
+USER_NAME = "Kelsier"

@@ -1,15 +1,68 @@
-operator
-
+operator:
 cmd edit mkdir rm read
+
+
+
 
 manager
 researcher
-
-
 can edit tool
+agent json mode
+time tool
+
+
+
+
+
+
+memory timestamp
+
 
 
 memory:
     short term: role=assistant
     long term:
     
+
+
+memory operator:
+1: history => stm(newest)
+2: stm => ltm
+
+tools or skills:
+ltm:edit rm add load read
+stm:edit rm add
+clear history
+
+memorable = false
+
+
+
+stm manager:
+stm:edit rm add   
+rm add history
+call ltm manager
+
+ltm manager:
+ltm:edit rm add load unload read
+
+
+
+1 agent stop => call stm manager
+2 clear history => stm
+3 
+
+
+
+
+way1:
+stm manager + ltm manager
+
+
+way2:
+auto stm + ltm manager
+ltm manager:
+ltm:edit rm add load unload read
+stm:edit rm add
+
+when update_memory called or stm > 20 => call ltm manager

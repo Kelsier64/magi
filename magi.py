@@ -1,4 +1,5 @@
 import os,json
+from datetime import datetime
 import config
 from openai import AzureOpenAI,OpenAI
 from dotenv import load_dotenv
@@ -16,12 +17,8 @@ client = AzureOpenAI(
     api_version="2025-03-01-preview",
 )
 system_prompt = ""
-
-main_prompt = """
-You are an AI agent in a multi-agent system.
-You have access to tools and skills to perform tasks. 
-Your output and actions will be recorded in your memory from a first-person perspective, so do not address the user directly in your output; instead, use the 'send_message' tool to communicate with them.
-"""
+memory_cleaner_prompt = "Clean the following conversation history and summarize it into a concise paragraph using the second person 'You' regarding the agent's actions. Focus only on key actions and outcomes; do not record trivial details or failed attempts."
+# ex:remember chat if needed
 
 def ai_request(messages,text_format=None):
     try:
@@ -59,56 +56,50 @@ def ai_tool_request(messages,tools_schema):
 
 
 class agent:
-    def __init__(self, name):
+
+    def __init__(self, name,prompt):
         self.name = name
         self.description = ""
         self.status = "STOPPED"
-        self.prompt = ""
+        self.prompt = prompt
+        self.tools = []
         # self.model = "o4-mini"
+
+        #memory
+        # self.ltm = []
+        self.stm = []
         self.history = []
 
-        self.memory = [main_prompt]
-        self.stm = ""
-        self.ltm = []
+    def get_messages(self):
+        messages = [{"role": "system", "content": self.prompt}] + self.stm + self.history
+        # ltm
+        return messages
 
-        self.skills = []
-
-        # Tools description for System Prompt
-        tools_desc = get_tools_description()
-        
-        # Initialize Prompt
-        system_instruction = f"""
-{main_prompt}
-
-You are a helpful AI assistant.
-You have access to the following tools:
-{tools_desc}
-
-To use a tool, you MUST output a valid JSON object matching the `AgentStep` schema.
-1. `reasoning`: Explain YOUR THINKING PROCESS. Why are you taking this step? What do you expect to see?
-2. `tool_name`: The exact name of the tool to call.
-3. `tool_args`: The parameters for the tool as a valid JSON string (e.g. '{{"path": "./file.txt"}}'). Ensure all quotes and newlines within the string are properly escaped.
-
-If you have completed the task or cannot proceed, use the `stop` tool.
-"""
-        self.messages = [
-            {"role": "system", "content": system_instruction}
-        ]
-
-    def update(self):
-        pass
+    def summarize(self):
+        try:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            summary_prompt = [
+                {"role": "system", "content": memory_cleaner_prompt},
+                {"role": "user", "content": f"Current Time: {timestamp}"},
+                {"role": "user", "content": json.dumps(self.get_messages(), ensure_ascii=False)}
+            ]
+            summary = ai_request(summary_prompt)
+            self.stm.append({"role": "system", "content": summary})
+            self.history = []
+            print(f"  [Summary] {summary}")
+        except Exception as e:
+            print(f"  [Error] Failed to summarize history: {e}")
 
 
     def step(self):
-        print(f"Agent {self.name} stepping...", flush=True)
         
         try:
             # Call LLM with Structured Output
             if config.SHOW_THOUGHTS:
                 print(f"  [Thinking] Agent is thinking...", flush=True)
             step = client.beta.chat.completions.parse(
-                model="o4-mini", # Or your deployment name
-                messages=self.messages,
+                model="o4-mini",
+                messages=self.get_messages(),
                 response_format=AgentStep,
             ).choices[0].message.parsed
             
@@ -121,10 +112,16 @@ If you have completed the task or cannot proceed, use the `stop` tool.
                 if config.SHOW_TOOL_CALLS:
                     print(f"  [Tool Call] {step.tool_name} args={step.tool_args}", flush=True)
                 
-                if step.tool_name == "stop":
-                    print("  [Stop] Agent decided to stop.")
-                    self.status = "STOPPED"
-                    return "STOPPED"
+                if step.tool_name == "wait":
+                    print("  [Wait] Agent decided to wait.")
+                    self.summarize()
+                    result = available_tools["wait"](**json.loads(step.tool_args) if step.tool_args else {})
+                    if result == "WAIT_INDEFINITE":
+                        self.status = "STOPPED"
+                        return "STOPPED"
+                    else:
+                        # Timed wait finished, resume
+                        return "RUNNING"
                     
                 tool_func = available_tools.get(step.tool_name)
                 if tool_func:
@@ -149,28 +146,29 @@ If you have completed the task or cannot proceed, use the `stop` tool.
                         # Since we are essentially "simulating" tools, we can feed the result back as a User message or System message representing the environment.
                         # Let's use 'user' role to represent Environment feedback for simplicity in this pattern.
                         tool_feedback = f"Tool '{step.tool_name}' Output:\n{result}"
-                        self.messages.append({"role": "assistant", "content": step.model_dump_json()}) # Store Agent's decision
-                        self.messages.append({"role": "user", "content": tool_feedback})
-                        print(f"  [Result] Tool output received ({len(str(result))} chars).")
+                        self.history.append({"role": "assistant", "content": step.model_dump_json()})
+                        self.history.append({"role": "user", "content": tool_feedback})
+                        # print(f"  [Result] Tool output received ({len(str(result))} chars).")
                         
                     except Exception as e:
                         error_msg = f"Error executing tool {step.tool_name}: {e}"
                         print(f"  [Error] {error_msg}")
-                        self.messages.append({"role": "assistant", "content": step.model_dump_json()})
-                        self.messages.append({"role": "user", "content": error_msg})
+                        self.history.append({"role": "assistant", "content": step.model_dump_json()})
+                        self.history.append({"role": "user", "content": error_msg})
                 else:
                     error_msg = f"Error: Tool '{step.tool_name}' not found."
                     print(f"  [Error] {error_msg}")
-                    self.messages.append({"role": "assistant", "content": step.model_dump_json()})
-                    self.messages.append({"role": "user", "content": error_msg})
+                    self.history.append({"role": "assistant", "content": step.model_dump_json()})
+                    self.history.append({"role": "user", "content": error_msg})
             else:
-                # No tool called, but maybe just reasoning? 
+                # No tool called, but maybe just reasoning?
                 # Usually we force a tool call or stop.
-                print("  [Warning] No tool name provided.")
-                self.messages.append({"role": "assistant", "content": step.model_dump_json()})
+                # print("  [Warning] No tool name provided.")
+                self.history.append({"role": "assistant", "content": step.model_dump_json()})
         
         except Exception as e:
             print(f"Error during agent step: {e}")
             return "ERROR"
             
         return "RUNNING"
+

@@ -15,6 +15,9 @@ def execute_bash(command):
     except Exception as e:
         return f"Error executing command: {e}"
 
+#todo: 5 seconds check once 
+
+
 def read_file(path):
     """
     Reads the content of a file.
@@ -96,10 +99,16 @@ def grep(pattern, path="."):
 
 # def load_ltm():
 #     pass
+# def search_memory():
+#     pass
 # def call_agent(agent):
 #     pass
+
+
 def update_memory(memory,prompt):
     pass
+
+# first=>third
 
 
 def send_message(message):
@@ -112,15 +121,21 @@ def send_message(message):
     print(f"Agent: {message}")
     return "Message sent."
 
-def stop():
+def wait(minutes=None):
     """
-    Stops the agent execution when the task is complete.
-    
+    Pauses agent execution.
+
     Args:
-        None
+        minutes (float, optional): Number of minutes to wait. If not provided, waits indefinitely until new interaction.
     """
-    print("Agent stopping...")
-    return "STOP_SIGNAL"
+    if minutes is None:
+        print("Agent waiting indefinitely...")
+        return "WAIT_INDEFINITE"
+    else:
+        import time
+        print(f"Agent waiting for {minutes} minute(s)...")
+        time.sleep(float(minutes) * 60)
+        return f"Waited {minutes} minute(s)."
 
 available_tools = {
     "execute_bash": execute_bash,
@@ -129,7 +144,7 @@ available_tools = {
     "ls": ls,
     "grep": grep,
     "send_message": send_message,
-    "stop": stop
+    "wait": wait
 }
 
 def get_tools_description():
