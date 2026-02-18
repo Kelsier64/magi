@@ -6,4 +6,9 @@ history
 
 
 
-ltm:title,content,path
+ltm:
+name
+description
+content
+path
+status:hide,loaded,visible

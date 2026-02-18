@@ -1,6 +1,7 @@
 import subprocess
 import os
 import glob
+import time
 
 def execute_bash(command):
     """
@@ -129,11 +130,8 @@ def wait(minutes=None):
         minutes (float, optional): Number of minutes to wait. If not provided, waits indefinitely until new interaction.
     """
     if minutes is None:
-        print("Agent waiting indefinitely...")
         return "WAIT_INDEFINITE"
     else:
-        import time
-        print(f"Agent waiting for {minutes} minute(s)...")
         time.sleep(float(minutes) * 60)
         return f"Waited {minutes} minute(s)."
 

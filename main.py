@@ -24,35 +24,9 @@ def input_listener(q):
             break
 
 def main():
-    tools_desc = get_tools_description()
-        
-    # Initialize Prompt
-
-    main_prompt = """
-    You are an AI agent in a multi-agent system.
-    You have access to tools and skills to perform tasks. 
-    Your output and actions will be recorded in your memory from a first-person perspective, so do not address the user directly in your output; instead, use the 'send_message' tool to communicate with them.
-    """
-
-    system_instruction = f"""
-        {main_prompt}
-
-        You have access to the following tools:
-        {tools_desc}
-
-        To use a tool, you MUST output a valid JSON object matching the `AgentStep` schema.
-        1. `reasoning`: Explain YOUR THINKING PROCESS. Why are you taking this step? What do you expect to see?
-        2. `tool_name`: The exact name of the tool to call.
-        3. `tool_args`: The parameters for the tool as a valid JSON string (e.g. '{{"path": "./file.txt"}}'). Ensure all quotes and newlines within the string are properly escaped.
-
-        If you have completed the task or cannot proceed, use the `wait` tool.
-    """
     print("Initializing Agent...", flush=True)
 
-    my_agent = agent(name="Magi-01",prompt=system_instruction)
-    
-    # Injecting a starting user message for testing
-    # my_agent.messages.append({"role": "user", "content": "Please check the current directory files and say hello."})
+    my_agent = agent(name="Magi-01")
     
     # Input Queue
     input_queue = queue.Queue()

@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from tools import available_tools, get_tools_description
 from models import AgentStep
-
+from ltm_loader import load_ltm_files
+from config import SUMMARIZE_THRESHOLD
 load_dotenv()
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -57,22 +58,42 @@ def ai_tool_request(messages,tools_schema):
 
 class agent:
 
-    def __init__(self, name,prompt):
+    def __init__(self, name):
         self.name = name
         self.description = ""
         self.status = "STOPPED"
-        self.prompt = prompt
-        self.tools = []
-        # self.model = "o4-mini"
 
         #memory
-        # self.ltm = []
         self.stm = []
         self.history = []
+        
+        # Load LTM
+        try:
+            self.active_ltm, self.visible_ltm = load_ltm_files("./ltm", self.name)
+            print(f"[System] Loaded {len(self.active_ltm)} active LTMs and found {len(self.visible_ltm)} visible LTMs for {self.name}")
+        except Exception as e:
+            print(f"[System] Failed to load LTM: {e}")
+            self.active_ltm = []
+            self.visible_ltm = []
 
     def get_messages(self):
-        messages = [{"role": "system", "content": self.prompt}] + self.stm + self.history
-        # ltm
+        # Add Active LTM to context
+        ltm_content = ""
+        if self.active_ltm:
+            ltm_content += "\n\nRelevant Long-Term Memories (Active):\n"
+            for m in self.active_ltm:
+                ltm_content += f"--- Memory: {m.name} ---\n{m.content}\n"
+        
+        # Optionally list visible but not active LTMs so agent knows they exist
+        if self.visible_ltm:
+            ltm_content += "\n\nOther Available Memories (loadable via tools):\n"
+            for m in self.visible_ltm:
+                ltm_content += f"- {m.name}: {m.description}\n"
+        
+        system_msg_content = ltm_content + get_tools_description()
+        
+        # Ensure system prompt is the first message
+        messages = [{"role": "system", "content": system_msg_content}] + self.stm + self.history
         return messages
 
     def summarize(self):
@@ -112,17 +133,11 @@ class agent:
                 if config.SHOW_TOOL_CALLS:
                     print(f"  [Tool Call] {step.tool_name} args={step.tool_args}", flush=True)
                 
+                # Pre-execution hooks
                 if step.tool_name == "wait":
                     print("  [Wait] Agent decided to wait.")
-                    self.summarize()
-                    result = available_tools["wait"](**json.loads(step.tool_args) if step.tool_args else {})
-                    if result == "WAIT_INDEFINITE":
-                        self.status = "STOPPED"
-                        return "STOPPED"
-                    else:
-                        # Timed wait finished, resume
-                        return "RUNNING"
                     
+                
                 tool_func = available_tools.get(step.tool_name)
                 if tool_func:
                     try:
@@ -141,6 +156,18 @@ class agent:
                         
                         result = tool_func(**args)
                         
+                        # Post-execution hooks
+                        if step.tool_name == "wait":
+                            if result == "WAIT_INDEFINITE":
+                                self.status = "STOPPED"
+                                if len(self.history) > SUMMARIZE_THRESHOLD:
+                                    self.summarize()
+
+                                return "STOPPED"
+                            else:
+                                # Timed wait finished, resume
+                                return "RUNNING"
+
                         # Add Tool Output to History (User role usually used for tool outputs in this pattern if not using native tool calls)
                         # Or we can use 'function' role if we were using native tools.
                         # Since we are essentially "simulating" tools, we can feed the result back as a User message or System message representing the environment.
