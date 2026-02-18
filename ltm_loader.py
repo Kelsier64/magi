@@ -3,25 +3,18 @@ import frontmatter
 from typing import List, Tuple
 from models import ltm
 
-def load_ltm_files(directory: str, agent_name: str) -> Tuple[List[ltm], List[ltm]]:
+def load_ltm_files(directory: str) -> List[ltm]:
     """
-    Loads LTM files from a directory, filtering by agent_name.
+    Loads all LTM files from a directory.
     
-    Logic:
-    - 'visible_to': list of agents who can SEE/KNOW this memory exists.
-    - 'active_for': list of agents for whom this memory is currently ACTIVE/IN-CONTEXT.
-    
-    Returns tuple (active_ltm_list, visible_ltm_list)
+    Returns a list of ltm objects.
     """
-    active_ltm = []
-    visible_ltm = []
-    
-    agent_name_lower = agent_name.lower()
+    all_ltms = []
     
     if not os.path.exists(directory):
-        return active_ltm, visible_ltm
+        return all_ltms
         
-    for filename in os.listdir(directory):
+    for filename in sorted(os.listdir(directory)):
         if filename.endswith(".md"):
             filepath = os.path.join(directory, filename)
             try:
@@ -31,9 +24,8 @@ def load_ltm_files(directory: str, agent_name: str) -> Tuple[List[ltm], List[ltm
                 content = post.content
                 
                 # Normalize lists to lowercase for comparison
-                # Handle cases where metadata might be None or missing keys
                 visible_to_raw = metadata.get('visible_to', [])
-                if isinstance(visible_to_raw, str): # Handle single string case just in case
+                if isinstance(visible_to_raw, str):
                      visible_to_raw = [visible_to_raw]
                 visible_to = [str(x).lower() for x in visible_to_raw] if visible_to_raw else []
 
@@ -42,44 +34,91 @@ def load_ltm_files(directory: str, agent_name: str) -> Tuple[List[ltm], List[ltm
                      active_for_raw = [active_for_raw]
                 active_for = [str(x).lower() for x in active_for_raw] if active_for_raw else []
 
-                # Check visibility
-                is_visible = False
-                if not visible_to or 'all' in visible_to or agent_name_lower in visible_to:
-                     is_visible = True
+                memory_name = metadata.get('name', filename)
+                description = metadata.get('description', '')
                 
-                # Check active
-                is_active = False
-                if not active_for or 'all' in active_for or agent_name_lower in active_for:
-                    is_active = True
+                memory = ltm(
+                    name=memory_name,
+                    description=description,
+                    content=content,
+                    path=filepath,
+                    active_for=active_for,
+                    visible_to=visible_to
+                )
                 
-                if is_visible or is_active:
-                     memory_name = metadata.get('name', filename)
-                     description = metadata.get('description', '')
-                     
-                     memory = ltm(
-                         name=memory_name,
-                         description=description,
-                         content=content,
-                         path=filepath,
-                         active_for=active_for,
-                         visible_to=visible_to
-                     )
-                     
-                     if is_active:
-                         active_ltm.append(memory)
-                     elif is_visible:
-                         visible_ltm.append(memory)
+                all_ltms.append(memory)
                      
             except Exception as e:
                 print(f"Error loading LTM file {filename}: {e}")
                 
-    return active_ltm, visible_ltm
+    return all_ltms
+
+def update_ltm_metadata(memory_name: str, agent_name: str, field: str, action: str = "add") -> str:
+    """
+    Updates the metadata of an LTM file.
+    
+    Args:
+        memory_name (str): The name of the memory (filename without .md or 'name' in frontmatter).
+        agent_name (str): The name of the agent.
+        field (str): 'active_for' or 'visible_to'.
+        action (str): 'add' or 'remove'.
+    """
+    directory = "./ltm"
+    target_file = None
+    
+    # Find the file
+    for filename in os.listdir(directory):
+        if filename.endswith(".md"):
+            try:
+                filepath = os.path.join(directory, filename)
+                post = frontmatter.load(filepath)
+                if post.metadata.get('name') == memory_name or filename == f"{memory_name}.md":
+                    target_file = filepath
+                    break
+            except:
+                continue
+                
+    if not target_file:
+        return f"Memory '{memory_name}' not found."
+
+    try:
+        post = frontmatter.load(target_file)
+        current_list = post.metadata.get(field, [])
+        if isinstance(current_list, str):
+            current_list = [current_list]
+        
+        if current_list is None:
+            current_list = []
+        
+        # Ensure list
+        current_list = list(current_list)
+        
+        if action == "add":
+            if agent_name not in current_list:
+                current_list.append(agent_name)
+        elif action == "remove":
+            if agent_name in current_list:
+                current_list.remove(agent_name)
+        
+        # Add a newline at the end if it's missing (common issue with frontmatter)
+        if not post.content.endswith('\n'):
+             post.content += '\n'
+
+        post.metadata[field] = current_list
+        
+        # Write back
+        # frontmatter.dump uses UTF-8 by default
+        with open(target_file, 'w', encoding='utf-8') as f:
+            f.write(frontmatter.dumps(post))
+        
+        return f"Successfully updated {memory_name}"
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return f"Error updating metadata: {e}"
 
 if __name__ == "__main__":
-    # Test
-    test_dir = "./ltm"
-    agent_name = "Magi-01"
-    active, visible = load_ltm_files(test_dir, agent_name)
-    print(f"Loaded for {agent_name}:")
-    print(f"Active ({len(active)}): {[m.name for m in active]}")
-    print(f"Visible ({len(visible)}): {[m.name for m in visible]}")
+   test = load_ltm_files("./ltm")
+   for t in test:
+       print(t.name,t.visible_to,t.active_for)

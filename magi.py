@@ -4,9 +4,9 @@ import config
 from openai import AzureOpenAI,OpenAI
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from tools import available_tools, get_tools_description
+from tools import available_tools
 from models import AgentStep
-from ltm_loader import load_ltm_files
+from ltm_loader import load_ltm_files, update_ltm_metadata
 from config import SUMMARIZE_THRESHOLD
 load_dotenv()
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
@@ -17,7 +17,7 @@ client = AzureOpenAI(
     azure_endpoint=AZURE_OPENAI_ENDPOINT,
     api_version="2025-03-01-preview",
 )
-system_prompt = ""
+
 memory_cleaner_prompt = "Clean the following conversation history and summarize it into a concise paragraph using the second person 'You' regarding the agent's actions. Focus only on key actions and outcomes; do not record trivial details or failed attempts."
 # ex:remember chat if needed
 
@@ -40,7 +40,6 @@ def ai_request(messages,text_format=None):
         print(f"Error in ai request: {e}")
         return "error"
 
-
 def ai_tool_request(messages,tools_schema):
     try:
         response = client.chat.completions.create(
@@ -55,42 +54,142 @@ def ai_tool_request(messages,tools_schema):
         return "error"
 
 
-
+ 
 class agent:
 
-    def __init__(self, name):
+    def __init__(self, name,description=""):
         self.name = name
-        self.description = ""
+        self.description = description
         self.status = "STOPPED"
+        self.agent_tools = {
+            "active_ltm": self.active_ltm,
+            "search_memory": self.search_memory,
+            "wait": self.wait
+        }
+
 
         #memory
         self.stm = []
         self.history = []
+        self.ltm_content = ""
+        self.load_my_ltm()
+
+    def active_ltm(self, name):
+        """
+        Activates a specific Long Term Memory for the agent.
         
-        # Load LTM
+        Args:
+            name (str): The name of the memory to activate. (required)
+        """
         try:
-            self.active_ltm, self.visible_ltm = load_ltm_files("./ltm", self.name)
-            print(f"[System] Loaded {len(self.active_ltm)} active LTMs and found {len(self.visible_ltm)} visible LTMs for {self.name}")
+            result = update_ltm_metadata(name, self.name, 'active_for', 'add')
+            if "Successfully updated" in result:
+                self.load_my_ltm()
+                return f"{result}\n[System] Memory reloaded successfully."
+            return result
+        except Exception as e:
+            return f"Error activating LTM: {e}"
+
+    def search_memory(self, query):
+        """
+        Searches Long Term Memories by name, description, or content.
+        
+        Args:
+            query (str): The search query. (required)
+        """
+        try:
+            ltms = load_ltm_files("./ltm")
+            matches = []
+            query_lower = query.lower()
+            for m in ltms:
+                if (query_lower in m.name.lower() or 
+                    query_lower in m.description.lower() or 
+                    query_lower in m.content.lower()):
+                    matches.append(f"- Name: {m.name}, Description: {m.description}")
+                    # Auto-add visibility
+                    update_ltm_metadata(m.name, self.name, 'visible_to', 'add')
+            
+            if not matches:
+                return f"No memories found matching '{query}'."
+
+            # Reload to reflect visibility changes
+            self.load_my_ltm()
+            return "Found memories (automatically added to visible):\n" + "\n".join(matches)
+        except Exception as e:
+            return f"Error searching memory: {e}"
+
+    def wait(self):
+        """
+        Pauses agent execution indefinitely.
+        """
+        self.status = "STOPPED"
+        if len(self.history) > SUMMARIZE_THRESHOLD:
+            self.summarize()
+        return "Agent paused."
+    
+    def get_tools_description(self):
+        """Generates a text description of available tools for the system prompt."""
+        description = "Available Tools:\n"
+        
+        # Internal tools
+        for name, func in self.agent_tools.items():
+            doc = func.__doc__ if func.__doc__ else "No description available."
+            description += f"- {name}: {doc}\n"
+            
+        # External tools
+        for name, func in available_tools.items():
+             # Avoid duplicates if any
+            if name not in self.agent_tools:
+                doc = func.__doc__ if func.__doc__ else "No description available."
+                description += f"- {name}: {doc}\n"
+                
+        return description
+
+    def load_my_ltm(self):
+        all_ltms = load_ltm_files("./ltm")
+        try:
+            self.active_ltms = []
+            self.visible_ltms = []
+            
+            agent_name_lower = self.name.lower()
+            
+            for m in all_ltms:
+                # Check visibility
+                is_visible = False
+                if agent_name_lower in m.visible_to:
+                     is_visible = True
+                
+                # Check active
+                is_active = False
+                if agent_name_lower in m.active_for:
+                    is_active = True
+                
+                if is_active:
+                     self.active_ltms.append(m)
+                elif is_visible:
+                     self.visible_ltms.append(m)
+
+            print(f"[System] Loaded {len(self.active_ltms)} active LTMs and found {len(self.visible_ltms)} visible LTMs for {self.name}")
         except Exception as e:
             print(f"[System] Failed to load LTM: {e}")
-            self.active_ltm = []
-            self.visible_ltm = []
+            self.active_ltms = []
+            self.visible_ltms = []
+
+        if self.active_ltms:
+            self.ltm_content += "\n\nRelevant Long-Term Memories (Active):\n"
+            for m in self.active_ltms:
+                self.ltm_content += f"--- Memory: {m.name} ---\n{m.content}\n"
+        
+
+        if self.visible_ltms:
+            self.ltm_content += "\n\nOther Available Memories (loadable via tools):\n"
+            for m in self.visible_ltms:
+                self.ltm_content += f"- {m.name}: {m.description}\n"
+
 
     def get_messages(self):
         # Add Active LTM to context
-        ltm_content = ""
-        if self.active_ltm:
-            ltm_content += "\n\nRelevant Long-Term Memories (Active):\n"
-            for m in self.active_ltm:
-                ltm_content += f"--- Memory: {m.name} ---\n{m.content}\n"
-        
-        # Optionally list visible but not active LTMs so agent knows they exist
-        if self.visible_ltm:
-            ltm_content += "\n\nOther Available Memories (loadable via tools):\n"
-            for m in self.visible_ltm:
-                ltm_content += f"- {m.name}: {m.description}\n"
-        
-        system_msg_content = ltm_content + get_tools_description()
+        system_msg_content = self.ltm_content + self.get_tools_description()
         
         # Ensure system prompt is the first message
         messages = [{"role": "system", "content": system_msg_content}] + self.stm + self.history
@@ -133,12 +232,12 @@ class agent:
                 if config.SHOW_TOOL_CALLS:
                     print(f"  [Tool Call] {step.tool_name} args={step.tool_args}", flush=True)
                 
-                # Pre-execution hooks
-                if step.tool_name == "wait":
-                    print("  [Wait] Agent decided to wait.")
-                    
-                
-                tool_func = available_tools.get(step.tool_name)
+                # Check internal tools first
+                tool_func = self.agent_tools.get(step.tool_name)
+                # Then external tools
+                if not tool_func:
+                    tool_func = available_tools.get(step.tool_name)
+
                 if tool_func:
                     try:
                         # Execute Tool
@@ -156,27 +255,14 @@ class agent:
                         
                         result = tool_func(**args)
                         
-                        # Post-execution hooks
-                        if step.tool_name == "wait":
-                            if result == "WAIT_INDEFINITE":
-                                self.status = "STOPPED"
-                                if len(self.history) > SUMMARIZE_THRESHOLD:
-                                    self.summarize()
-
-                                return "STOPPED"
-                            else:
-                                # Timed wait finished, resume
-                                return "RUNNING"
-
-                        # Add Tool Output to History (User role usually used for tool outputs in this pattern if not using native tool calls)
-                        # Or we can use 'function' role if we were using native tools.
-                        # Since we are essentially "simulating" tools, we can feed the result back as a User message or System message representing the environment.
-                        # Let's use 'user' role to represent Environment feedback for simplicity in this pattern.
                         tool_feedback = f"Tool '{step.tool_name}' Output:\n{result}"
                         self.history.append({"role": "assistant", "content": step.model_dump_json()})
                         self.history.append({"role": "user", "content": tool_feedback})
-                        # print(f"  [Result] Tool output received ({len(str(result))} chars).")
                         
+                        # Stop if status is STOPPED (set by wait tool)
+                        if self.status == "STOPPED":
+                            return "STOPPED"
+                            
                     except Exception as e:
                         error_msg = f"Error executing tool {step.tool_name}: {e}"
                         print(f"  [Error] {error_msg}")

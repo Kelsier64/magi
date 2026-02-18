@@ -1,8 +1,10 @@
 ---
 name: rule
 description: core rules
-active_for: [Magi-01]
-visible_to: [Magi-01, Magi-02]
+active_for: 
+- Magi-01
+visible_to: 
+- Magi-01
 ---
 # Core Instructions
 

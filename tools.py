@@ -1,7 +1,5 @@
 import subprocess
 import os
-import glob
-import time
 
 def execute_bash(command):
     """
@@ -98,20 +96,6 @@ def grep(pattern, path="."):
         return f"Error during grep: {e}"
 
 
-# def load_ltm():
-#     pass
-# def search_memory():
-#     pass
-# def call_agent(agent):
-#     pass
-
-
-def update_memory(memory,prompt):
-    pass
-
-# first=>third
-
-
 def send_message(message):
     """
     Sends a message to the user/human.
@@ -122,18 +106,15 @@ def send_message(message):
     print(f"Agent: {message}")
     return "Message sent."
 
-def wait(minutes=None):
-    """
-    Pauses agent execution.
 
-    Args:
-        minutes (float, optional): Number of minutes to wait. If not provided, waits indefinitely until new interaction.
-    """
-    if minutes is None:
-        return "WAIT_INDEFINITE"
-    else:
-        time.sleep(float(minutes) * 60)
-        return f"Waited {minutes} minute(s)."
+# def call_agent(agent):
+#     pass
+# def update_ltm():
+#     pass
+
+def update_stm():
+    pass
+
 
 available_tools = {
     "execute_bash": execute_bash,
@@ -141,16 +122,7 @@ available_tools = {
     "write_to_file": write_to_file,
     "ls": ls,
     "grep": grep,
-    "send_message": send_message,
-    "wait": wait
+    "send_message": send_message
 }
-
-def get_tools_description():
-    """Generates a text description of available tools for the system prompt."""
-    description = "Available Tools:\n"
-    for name, func in available_tools.items():
-        doc = func.__doc__ if func.__doc__ else "No description available."
-        description += f"- {name}: {doc}\n"
-    return description
 
 

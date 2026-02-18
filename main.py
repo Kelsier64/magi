@@ -3,7 +3,6 @@ import threading
 import queue
 import sys
 import time
-from tools import get_tools_description
 from config import USER_NAME
 
 def input_listener(q):
