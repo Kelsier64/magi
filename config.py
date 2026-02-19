@@ -2,3 +2,4 @@ SHOW_THOUGHTS = False
 SHOW_TOOL_CALLS = False
 USER_NAME = "Kelsier"
 SUMMARIZE_THRESHOLD = 10
+MESSAGE_LOG_PATH = "./messages_log/"

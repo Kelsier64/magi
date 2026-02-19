@@ -1,0 +1,51 @@
+[
+    {
+        "role": "system",
+        "content": "\n\nRelevant Long-Term Memories (Active):\n--- Memory: rule ---\n# Core Instructions\n\nYou are an AI agent in a multi-agent system.\nYou have access to tools and skills to perform tasks. \nYour output and actions will be recorded in your memory from a first-person perspective, so do not address the user directly in your output; instead, use the 'send_message' tool to communicate with them.\n\n# Tool Usage\n\nTo use a tool, you MUST output a valid JSON object matching the `AgentStep` schema.\n1. `reasoning`: Explain YOUR THINKING PROCESS. Why are you taking this step? What do you expect to see?\n2. `tool_name`: The exact name of the tool to call.\n3. `tool_args`: The parameters for the tool as a valid JSON string (e.g. '{\"path\": \"./file.txt\"}'). Ensure all quotes and newlines within the string are properly escaped.\n\nIf you have completed the task or cannot proceed, use the `wait` tool.\n\n\nOther Available Memories (loadable via tools):\n- test_mem_inactive: This memory is for testing manual activation.\nAvailable Tools:\n- active_ltm: \n        Activates a specific Long Term Memory for the agent.\n        \n        Args:\n            name (str): The name of the memory to activate. (required)\n        \n- search_memory: \n        Searches Long Term Memories by name, description, or content.\n        \n        Args:\n            query (str): The search query. (required)\n        \n- wait: \n        Pauses agent execution indefinitely.\n        \n- execute_bash: \n    Executes a bash command and returns the output.\n    \n    Args:\n        command (str): The bash command to execute (e.g., 'ls -la', 'git status'). (required)\n    \n- read_file: \n    Reads the content of a file.\n    \n    Args:\n        path (str): The absolute path to the file to read.(required)\n    \n- write_to_file: \n    Writes content to a file, overwriting it.\n    \n    Args:\n        path (str): The absolute path to the file.(required)\n        content (str): The content to write to the file.(required)\n    \n- ls: \n    Lists files in a directory.\n    \n    Args:\n        path (str): The directory path to list (default is current directory '.').\n    \n- grep: \n    SEARCH for pattern in files/directories using a simple walk (simplified grep).\n    \n    Args:\n        pattern (str): The text pattern to search for. (required)\n        path (str): The file or directory path to search in (default is current directory '.').\n    \n- send_message: \n    Sends a message to the user/human.\n    \n    Args:\n        message (str): The content of the message to send. (required)\n    \n"
+    },
+    {
+        "role": "user",
+        "name": "Kelsier",
+        "content": "make a hello world in py and execute it"
+    },
+    {
+        "role": "assistant",
+        "content": "{\"reasoning\":\"To create and run a Python Hello World script, I first need to write the script file 'hello.py' with the print statement.\",\"tool_name\":\"write_to_file\",\"tool_args\":\"{\\\"path\\\":\\\"./hello.py\\\",\\\"content\\\":\\\"print(\\\\\\\"Hello, world!\\\\\\\")\\\"}\"}"
+    },
+    {
+        "role": "assistant",
+        "content": "{\"reasoning\":\"To create and run a Python Hello World script, I first need to write the script file 'hello.py' with the print statement.\",\"tool_name\":\"write_to_file\",\"tool_args\":\"{\\\"path\\\":\\\"./hello.py\\\",\\\"content\\\":\\\"print(\\\\\\\"Hello, world!\\\\\\\")\\\"}\"}"
+    },
+    {
+        "role": "user",
+        "content": "Tool 'write_to_file' Output:\nSuccessfully wrote to ./hello.py"
+    },
+    {
+        "role": "assistant",
+        "content": "{\"reasoning\":\"Now I will execute the Python script to display its output.\",\"tool_name\":\"execute_bash\",\"tool_args\":\"{\\\"command\\\":\\\"python3 hello.py\\\"}\"}"
+    },
+    {
+        "role": "assistant",
+        "content": "{\"reasoning\":\"Now I will execute the Python script to display its output.\",\"tool_name\":\"execute_bash\",\"tool_args\":\"{\\\"command\\\":\\\"python3 hello.py\\\"}\"}"
+    },
+    {
+        "role": "user",
+        "content": "Tool 'execute_bash' Output:\nSTDOUT:\nHello, world!\n\nSTDERR:\n"
+    },
+    {
+        "role": "assistant",
+        "content": "{\"reasoning\":\"The Python script executed successfully, so I’m sending the output to the user.\",\"tool_name\":\"send_message\",\"tool_args\":\"{\\\"message\\\":\\\"Hello, world!\\\"}\"}"
+    },
+    {
+        "role": "assistant",
+        "content": "{\"reasoning\":\"The Python script executed successfully, so I’m sending the output to the user.\",\"tool_name\":\"send_message\",\"tool_args\":\"{\\\"message\\\":\\\"Hello, world!\\\"}\"}"
+    },
+    {
+        "role": "user",
+        "content": "Tool 'send_message' Output:\nMessage sent."
+    },
+    {
+        "role": "assistant",
+        "content": "{\"reasoning\":\"All tasks completed.\",\"tool_name\":\"wait\",\"tool_args\":\"\"}"
+    }
+]

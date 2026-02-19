@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from tools import available_tools
 from models import AgentStep
 from ltm_loader import load_ltm_files, update_ltm_metadata
-from config import SUMMARIZE_THRESHOLD
+from config import SUMMARIZE_THRESHOLD,MESSAGE_LOG_PATH
 load_dotenv()
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -195,8 +195,19 @@ class agent:
         messages = [{"role": "system", "content": system_msg_content}] + self.stm + self.history
         return messages
 
+    def download_messages(self):
+        try:
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"messages_{timestamp}.json"
+            with open(MESSAGE_LOG_PATH + filename, "w", encoding="utf-8") as f:
+                json.dump(self.get_messages(), f, ensure_ascii=False, indent=4)
+            print(f"  [System] Messages downloaded to {filename}")
+        except Exception as e:
+            print(f"  [Error] Failed to download messages: {e}")
+
     def summarize(self):
         try:
+            self.download_messages()
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             summary_prompt = [
                 {"role": "system", "content": memory_cleaner_prompt},
@@ -204,7 +215,8 @@ class agent:
                 {"role": "user", "content": json.dumps(self.get_messages(), ensure_ascii=False)}
             ]
             summary = ai_request(summary_prompt)
-            self.stm.append({"role": "system", "content": summary})
+
+            self.stm.append({"role": "system", "content": f"Summary of previous conversation: {summary}"})
             self.history = []
             print(f"  [Summary] {summary}")
         except Exception as e:
@@ -217,7 +229,7 @@ class agent:
             # Call LLM with Structured Output
             if config.SHOW_THOUGHTS:
                 print(f"  [Thinking] Agent is thinking...", flush=True)
-            step = client.beta.chat.completions.parse(
+            step: AgentStep = client.beta.chat.completions.parse(
                 model="o4-mini",
                 messages=self.get_messages(),
                 response_format=AgentStep,
@@ -240,23 +252,17 @@ class agent:
 
                 if tool_func:
                     try:
-                        # Execute Tool
+                        
                         # Handle None args if necessary
-                        # Robust JSON parsing for args
                         args = {}
                         if step.tool_args:
-                            try:
-                                args = json.loads(step.tool_args)
-                            except json.JSONDecodeError as e:
-                                # Try to fix common issues like unescaped newlines in the string
-                                print(f"  [Warning] JSON decode failed for args: {step.tool_args}. Error: {e}")
-                                # Fallback: Empty args or raise
-                                raise e
-                        
+                            args = step.tool_args
+
+                        self.history.append({"role": "assistant", "content": step.model_dump_json()})
+                        # Execute Tool
                         result = tool_func(**args)
                         
                         tool_feedback = f"Tool '{step.tool_name}' Output:\n{result}"
-                        self.history.append({"role": "assistant", "content": step.model_dump_json()})
                         self.history.append({"role": "user", "content": tool_feedback})
                         
                         # Stop if status is STOPPED (set by wait tool)
