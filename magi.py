@@ -144,6 +144,7 @@ class agent:
         
         Args:
             text (str): The memory content to add. (required)
+            use second person perspective(you) to record the memory
         """
         # Append to stm_content for persistence
         self.stm_content += f"\n[Memory] {text}"
@@ -156,7 +157,9 @@ class agent:
         Clears the conversation history to free up context window. 
         Note: This does NOT save any information. Use 'remember' BEFORE calling this if you need to retain information.
         """
+        self.download_messages()
         self.history = []
+        
         print(f"  [System] History cleared by agent.")
         return "History cleared."
 
@@ -232,8 +235,23 @@ class agent:
         # Add Active LTM to context
         system_msg_content = self.ltm_content + self.get_tools_description()
         
+        # System Data
+        history_count = len(self.history)
+        system_data = f"""
+        System Data:
+        operate system:linux
+        time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        History Count: {history_count}, auto clean at {config.SUMMARIZE_THRESHOLD}
+        """
+
+
+        if history_count > config.SUMMARIZE_THRESHOLD:
+             system_data += "\nStatus: CRITICAL - CLEAN NOW"
+
         # Ensure system prompt is the first message
-        messages = [{"role": "system", "content": system_msg_content},{"role": "system", "content": self.stm_content}] + self.history
+        messages = [{"role": "system", "content": system_msg_content},
+                    {"role": "system", "content": self.stm_content},
+                    {"role": "system", "content": system_data}] + self.history
         return messages
 
     def download_messages(self):
@@ -334,6 +352,7 @@ class agent:
         
         except Exception as e:
             print(f"Error during agent step: {e}")
+            self.download_messages()
             return "ERROR"
             
         return "RUNNING"
