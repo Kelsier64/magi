@@ -64,7 +64,9 @@ class agent:
         self.agent_tools = {
             "active_ltm": self.active_ltm,
             "search_memory": self.search_memory,
-            "wait": self.wait
+            "wait": self.wait,
+            "remember": self.remember,
+            "clean_history": self.clean_history
         }
 
 
@@ -72,11 +74,12 @@ class agent:
         self.stm = []
         self.history = []
         self.ltm_content = ""
+        self.stm_content = "\n\nShort-Term Memories:\n"
         self.load_my_ltm()
 
     def active_ltm(self, name):
         """
-        Activates a specific Long Term Memory for the agent.
+        Activates a specific Long Term Memory.
         
         Args:
             name (str): The name of the memory to activate. (required)
@@ -89,6 +92,22 @@ class agent:
             return result
         except Exception as e:
             return f"Error activating LTM: {e}"
+
+    def deactivate_ltm(self, name):
+        """
+        Deactivates a specific Long Term Memory.
+        
+        Args:
+            name (str): The name of the memory to deactivate. (required)
+        """
+        try:
+            result = update_ltm_metadata(name, self.name, 'active_for', 'remove')
+            if "Successfully updated" in result:
+                self.load_my_ltm()
+                return f"{result}\n[System] Memory reloaded successfully."
+            return result
+        except Exception as e:
+            return f"Error deactivating LTM: {e}"
 
     def search_memory(self, query):
         """
@@ -118,13 +137,36 @@ class agent:
         except Exception as e:
             return f"Error searching memory: {e}"
 
+
+    def remember(self, text):
+        """
+        Adds a new memory to the agent's short-term memory.
+        
+        Args:
+            text (str): The memory content to add. (required)
+        """
+        # Append to stm_content for persistence
+        self.stm_content += f"\n[Memory] {text}"
+
+        print(f"[System] Remembered: {text}", flush=True)
+        return "Remembered successfully."
+
+    def clean_history(self):
+        """
+        Clears the conversation history to free up context window. 
+        Note: This does NOT save any information. Use 'remember' BEFORE calling this if you need to retain information.
+        """
+        self.history = []
+        print(f"  [System] History cleared by agent.")
+        return "History cleared."
+
     def wait(self):
         """
         Pauses agent execution indefinitely.
         """
         self.status = "STOPPED"
         if len(self.history) > SUMMARIZE_THRESHOLD:
-            self.summarize()
+            self.force_summarize()
         return "Agent paused."
     
     def get_tools_description(self):
@@ -186,13 +228,12 @@ class agent:
             for m in self.visible_ltms:
                 self.ltm_content += f"- {m.name}: {m.description}\n"
 
-
     def get_messages(self):
         # Add Active LTM to context
         system_msg_content = self.ltm_content + self.get_tools_description()
         
         # Ensure system prompt is the first message
-        messages = [{"role": "system", "content": system_msg_content}] + self.stm + self.history
+        messages = [{"role": "system", "content": system_msg_content},{"role": "system", "content": self.stm_content}] + self.history
         return messages
 
     def download_messages(self):
@@ -205,7 +246,7 @@ class agent:
         except Exception as e:
             print(f"  [Error] Failed to download messages: {e}")
 
-    def summarize(self):
+    def force_summarize(self):
         try:
             self.download_messages()
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -216,11 +257,15 @@ class agent:
             ]
             summary = ai_request(summary_prompt)
 
-            self.stm.append({"role": "system", "content": f"Summary of previous conversation: {summary}"})
+            self.stm_content +=f"{summary}\n"
+
             self.history = []
             print(f"  [Summary] {summary}")
         except Exception as e:
             print(f"  [Error] Failed to summarize history: {e}")
+
+
+
 
 
     def step(self):
@@ -263,11 +308,13 @@ class agent:
                         result = tool_func(**args)
                         
                         tool_feedback = f"Tool '{step.tool_name}' Output:\n{result}"
-                        self.history.append({"role": "user", "content": tool_feedback})
+                        
                         
                         # Stop if status is STOPPED (set by wait tool)
                         if self.status == "STOPPED":
                             return "STOPPED"
+
+                        self.history.append({"role": "user", "content": tool_feedback})
                             
                     except Exception as e:
                         error_msg = f"Error executing tool {step.tool_name}: {e}"

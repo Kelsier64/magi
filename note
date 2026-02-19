@@ -11,7 +11,7 @@ agent json mode
 time tool
 multi tools
 diff agent diff tools 
-
+event base
 
 memory timestamp
 
@@ -64,3 +64,25 @@ ltm:edit rm add load unload read
 stm:edit rm add
 
 when update_memory called or stm > 20 => call ltm manager
+
+
+
+
+1
+auto:
+history clear 
+summarize to stm
+
+tools:
+remember:text add to stm
+
+
+
+2
+tools:
+remember+summarize
+
+
+ltm manager:
+agent send stm_content to manager
+manager edit ltm and return to agent
