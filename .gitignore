@@ -9,3 +9,6 @@ wheels/
 # Virtual environments
 .venv
 .env
+
+# Messages log
+messages_log/
