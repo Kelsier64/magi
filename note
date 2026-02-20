@@ -86,3 +86,10 @@ remember+summarize
 ltm manager:
 agent send stm_content to manager
 manager edit ltm and return to agent
+
+
+bash tools:
+
+command
+check_terminal_status
+read_terminal

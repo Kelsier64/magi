@@ -240,6 +240,7 @@ class agent:
         system_data = f"""
         System Data:
         operate system:linux
+        working_directory: {os.getcwd()}
         time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         History Count: {history_count}, auto clean at {config.SUMMARIZE_THRESHOLD}
         """
@@ -282,7 +283,9 @@ class agent:
         except Exception as e:
             print(f"  [Error] Failed to summarize history: {e}")
 
-
+    def get_event(self):
+        pass        
+        
 
 
 

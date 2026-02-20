@@ -10,3 +10,9 @@ update stm
 
 working folder
 data linux system time...
+wait*(time)
+
+notify when process done,add pty result to messages
+list pty sessions
+
+workflow: make codebase structure.md
