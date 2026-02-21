@@ -63,7 +63,7 @@ def update_ltm_metadata(memory_name: str, agent_name: str, field: str, action: s
         field (str): 'active_for' or 'visible_to'.
         action (str): 'add' or 'remove'.
     """
-    directory = "./ltm"
+    directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ltm")
     target_file = None
     
     # Find the file
@@ -119,6 +119,7 @@ def update_ltm_metadata(memory_name: str, agent_name: str, field: str, action: s
         return f"Error updating metadata: {e}"
 
 if __name__ == "__main__":
-   test = load_ltm_files("./ltm")
+   test_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ltm")
+   test = load_ltm_files(test_dir)
    for t in test:
        print(t.name,t.visible_to,t.active_for)

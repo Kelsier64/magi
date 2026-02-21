@@ -1,18 +1,11 @@
-
 stopped => idle
 
-deactivate ltm:active=>visible or visible=>unvisible
-search for more
-
-
-update stm
-
-
-working folder
-data linux system time...
-wait*(time)
+wait(time)  like a clock
 
 notify when process done,add pty result to messages
-list pty sessions
 
-workflow: make codebase structure.md
+asyncio
+
+update description 
+kill agent
+search memory tool=>call manager to search 

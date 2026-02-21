@@ -62,7 +62,7 @@ def send_command_input(command_id, input=None, terminate=None, wait="1"):
     )
     return json.dumps(result, ensure_ascii=False)
 
-
+# remove
 def list_commands():
     """
     Lists all tracked commands with their current status.
@@ -207,16 +207,9 @@ def grep(pattern, path="."):
     except Exception as e:
         return f"Error during grep: {e}"
 
-def send_message(message):
-    """
-    Sends a message to the user/human.
 
-    Args:
-        message (str): The content of the message to send. (required)
-    """
-    print(f"Agent: {message}")
-    return "Message sent."
 
+# name
 
 # def call_agent(agent):
 #     pass
@@ -236,6 +229,5 @@ available_tools = {
     "write_to_file": write_to_file,
     "edit_file": edit_file,
     "ls": ls,
-    "grep": grep,
-    "send_message": send_message
+    "grep": grep
 }

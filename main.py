@@ -1,4 +1,4 @@
-from magi import agent
+from magi import agent, agents
 import threading
 import queue
 import sys
@@ -22,10 +22,19 @@ def input_listener(q):
             print(f"[System] Input error: {e}", flush=True)
             break
 
+import os
+
 def main():
     print("Initializing Agent...", flush=True)
+    
+    workspace_dir = "agent_workspace"
+    if not os.path.exists(workspace_dir):
+        os.makedirs(workspace_dir)
+    os.chdir(workspace_dir)
+    print(f"[System] Entered workspace: {os.getcwd()}", flush=True)
 
-    my_agent = agent(name="Magi-01")
+    my_agent = agent(name="Magi-01", description="primary coordinator agent.")
+    ltm_manager = agent(name="LTM-Manager", description="memory manager agent.")
     
     # Input Queue
     input_queue = queue.Queue()
@@ -42,22 +51,26 @@ def main():
             user_text = input_queue.get()
             if user_text:
                 print(f"\nUser: {user_text}")
-                my_agent.history.append({"role": "user", "name":USER_NAME, "content": user_text})
+                # Default to routing user input to the primary agent
+                my_agent.history.append({"role": "user", "name": USER_NAME, "content": user_text})
                 
                 # Wake up agent if stopped
                 if my_agent.status == "STOPPED":
-                    # print("[System] Waking up agent due to new input...")
                     my_agent.status = "RUNNING"
         
-        # 2. Run Agent Step if RUNNING
-        if my_agent.status == "RUNNING":
-            status = my_agent.step()
-            if status == "STOPPED":
-                print("[System] Agent has stopped. Waiting for new input...")
-            elif status == "ERROR":
-                print("[System] Agent encountered an error. Stopping.")
-                my_agent.status = "STOPPED"
-        else:
+        # 2. Run Agent Step if RUNNING for all agents
+        any_running = False
+        for a in list(agents.values()):
+            if a.status == "RUNNING":
+                any_running = True
+                status = a.step()
+                if status == "STOPPED":
+                    print(f"[System] Agent {a.name} has stopped. Waiting for new input...")
+                elif status == "ERROR":
+                    print(f"[System] Agent {a.name} encountered an error. Stopping.")
+                    a.status = "STOPPED"
+        
+        if not any_running:
             # Sleep briefly to avoid CPU spinning when idle
             time.sleep(0.5)
 
