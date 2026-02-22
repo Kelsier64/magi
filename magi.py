@@ -142,6 +142,7 @@ class agent:
         self.status = "STOPPED"
         if len(self.history) > SUMMARIZE_THRESHOLD:
             self.force_summarize()
+        
         return "Agent paused."
 
 
@@ -206,27 +207,6 @@ class agent:
             return f"Successfully updated STM for agent '{agent_name}'."
         except Exception as e:
             return f"Error updating STM for agent '{agent_name}': {e}"
-
-    def compress_stm(self):
-        """
-        Compresses and filters the agent's short-term memory to keep it concise.
-        Automatically removes information already present in Long-Term Memory.
-        Can be called manually by the agent.
-        """
-        try:
-            print(f"[System] Compressing STM for {self.name}...", flush=True)
-            prompt = [
-                {"role": "system", "content": "You are a memory manager. Summarize the following short-term memory block into a highly concise format. **CRITICAL: If any information in the short-term memory is already present in the provided long-term memory or is clearly redundant, discard it completely from the summary.** Your goal is to keep only fresh, immediate context."},
-                {"role": "user", "content": f"Current Active/Visible Long-Term Memories:\n{self.ltm_content}"},
-                {"role": "user", "content": f"Short-Term Memory Block to Compress:\n{self.stm_content}"}
-            ]
-            compressed_content = ai_request(prompt)
-            if compressed_content and compressed_content != "error":
-                 self.stm_content = f"\n\nShort-Term Memories (Compressed):\n{compressed_content}\n"
-                 return "STM successfully compressed and deduplicated."
-            return "Error: Failed to generate compressed STM."
-        except Exception as e:
-            return f"Error during STM compression: {e}"
 
     def get_tools_description(self):
         """Generates a text description of available tools for the system prompt."""
@@ -328,7 +308,7 @@ class agent:
     def download_messages(self):
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            filename = f"messages_{timestamp}.json"
+            filename = f"{self.name}_{timestamp}.json"
             with open(MESSAGE_LOG_PATH + filename, "w", encoding="utf-8") as f:
                 json.dump(self.get_messages(), f, ensure_ascii=False, indent=4)
             print(f"  [System] Messages downloaded to {filename}")
@@ -352,10 +332,32 @@ class agent:
                 self.compress_stm()
 
             # Sliding Window: Keep the last 4 messages to preserve immediate context continuity
-            self.history = self.history[-4:]
+            self.history = self.history[-8:]
             print(f"  [Summary] {summary}")
         except Exception as e:
             print(f"  [Error] Failed to summarize history: {e}")
+
+    def compress_stm(self):
+        """
+        Compresses and filters the agent's short-term memory to keep it concise.
+        Automatically removes information already present in Long-Term Memory.
+        Can be called manually by the agent.
+        """
+        try:
+            print(f"[System] Compressing STM for {self.name}...", flush=True)
+            prompt = [
+                {"role": "system", "content": "You are a memory manager. Summarize the following short-term memory block into a highly concise format. **CRITICAL: If any information in the short-term memory is already present in the provided long-term memory or is clearly redundant, discard it completely from the summary.** Your goal is to keep only fresh, immediate context."},
+                {"role": "user", "content": f"Current Active/Visible Long-Term Memories:\n{self.ltm_content}"},
+                {"role": "user", "content": f"Short-Term Memory Block to Compress:\n{self.stm_content}"}
+            ]
+            compressed_content = ai_request(prompt)
+            if compressed_content and compressed_content != "error":
+                 self.stm_content = f"\n\nShort-Term Memories (Compressed):\n{compressed_content}\n"
+                 return "STM successfully compressed and deduplicated."
+            return "Error: Failed to generate compressed STM."
+        except Exception as e:
+            return f"Error during STM compression: {e}"
+
 
     def get_event(self):
         pass        

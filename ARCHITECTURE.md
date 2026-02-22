@@ -73,7 +73,7 @@ The `agent` class encapsulates an autonomous LLM actor. Every instance self-regi
 |---|---|
 | `active_ltm(name)` | Activates an LTM by adding the agent to its `active_for` list, then reloads LTM. |
 | `remember(text)` | Appends a note to `stm_content`. Auto-compresses if over `MAX_STM_LENGTH`. |
-| `summarize_history()` | Downloads messages to JSON, summarises history via LLM, keeps last 4 messages. |
+| `summarize_history()` | Downloads messages to JSON, summarises history via LLM, keeps last 8 messages. |
 | `compress_stm()` | LLM-summarises `stm_content`, deduplicating against active LTM. |
 | `wait()` | Sets status to `STOPPED`; auto-summarises if history exceeds threshold. |
 | `send_message(recipient, message)` | Routes a message to `human_user` (stdout) or another agent's `history`. Wakes stopped agents. |
@@ -163,6 +163,18 @@ Handles reading and writing of LTM files stored in `ltm/`.
 | `SUMMARIZE_THRESHOLD` | `30` | History message count that triggers auto-summarisation. |
 | `MESSAGE_LOG_PATH` | `messages_log/` | Directory for JSON message dumps. |
 | `MAX_STM_LENGTH` | `1500` | Character limit before STM is auto-compressed. |
+
+### 8. Message Log &mdash; `messages_log/`
+
+Every time an agent's history is summarised (via `force_summarize()` or when `wait()` triggers auto-summarisation), the full message context is dumped to a JSON file **before** the history is truncated. This provides a persistent, auditable record of all agent interactions.
+
+| Aspect | Detail |
+|---|---|
+| **Trigger** | `force_summarize()` calls `download_messages()` as its first step. |
+| **Filename** | `<agent_name>_<YYYY-MM-DD_HH-MM-SS>.json` (e.g. `Magi-01_2026-02-22_19-05-12.json`). |
+| **Content** | The full prompt array returned by `get_messages()` — system prompt (LTM + tools + STM + system data) plus the complete conversation `history`. |
+| **Storage** | Written to `MESSAGE_LOG_PATH` (`messages_log/` by default, gitignored). |
+| **Purpose** | Debugging, replay analysis, and auditing agent reasoning across summarisation boundaries. |
 
 ---
 
