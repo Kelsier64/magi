@@ -63,12 +63,12 @@ def send_command_input(command_id, input=None, terminate=None, wait="1"):
     return json.dumps(result, ensure_ascii=False)
 
 # remove
-def list_commands():
-    """
-    Lists all tracked commands with their current status.
-    """
-    result = command_manager.list_commands()
-    return json.dumps(result, ensure_ascii=False)
+# def list_commands():
+#     """
+#     Lists all tracked commands with their current status.
+#     """
+#     result = command_manager.list_commands()
+#     return json.dumps(result, ensure_ascii=False)
 
 
 def read_file(path, start_line=None, end_line=None):
@@ -224,7 +224,7 @@ available_tools = {
     "run_command": run_command,
     "command_status": command_status,
     "send_command_input": send_command_input,
-    "list_commands": list_commands,
+
     "read_file": read_file,
     "write_to_file": write_to_file,
     "edit_file": edit_file,

@@ -9,3 +9,7 @@ asyncio
 update description 
 kill agent
 search memory tool=>call manager to search 
+tool update status   
+status=>active ture false
+skills
+messages_log by name

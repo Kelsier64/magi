@@ -20,3 +20,4 @@ class ltm(BaseModel):
     path: str
     active_for: List[str]
     visible_to: List[str]
+    except_for: List[str] = []

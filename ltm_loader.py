@@ -34,6 +34,11 @@ def load_ltm_files(directory: str) -> List[ltm]:
                      active_for_raw = [active_for_raw]
                 active_for = [str(x).lower() for x in active_for_raw] if active_for_raw else []
 
+                except_for_raw = metadata.get('except_for', [])
+                if isinstance(except_for_raw, str):
+                     except_for_raw = [except_for_raw]
+                except_for = [str(x).lower() for x in except_for_raw] if except_for_raw else []
+
                 memory_name = metadata.get('name', filename)
                 description = metadata.get('description', '')
                 
@@ -43,7 +48,8 @@ def load_ltm_files(directory: str) -> List[ltm]:
                     content=content,
                     path=filepath,
                     active_for=active_for,
-                    visible_to=visible_to
+                    visible_to=visible_to,
+                    except_for=except_for
                 )
                 
                 all_ltms.append(memory)
@@ -122,4 +128,4 @@ if __name__ == "__main__":
    test_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ltm")
    test = load_ltm_files(test_dir)
    for t in test:
-       print(t.name,t.visible_to,t.active_for)
+       print(t.name,t.visible_to,t.active_for, t.except_for)

@@ -23,12 +23,14 @@ memory_cleaner_prompt = "Summarize the following conversation history into a con
 
 def ai_request(messages,text_format=None):
     try:
+        print("[DEBUG] Sending ai_request to o4-mini...", flush=True)
         if text_format is not None:
             response = client.responses.parse(
             model="o4-mini",
             input=messages,
             text_format=text_format,
             )
+            print("[DEBUG] Received structured response.", flush=True)
             return response.output_parsed
         else:
             response = client.responses.parse(
@@ -66,7 +68,6 @@ class agent:
         self.status = "STOPPED"
         self.agent_tools = {
             "active_ltm": self.active_ltm,
-            "search_memory": self.search_memory,
             "remember": self.remember,
             "summarize_history": self.summarize_history,
             "compress_stm": self.compress_stm,
@@ -74,7 +75,7 @@ class agent:
             "wait": self.wait,
             "send_message": self.send_message,
             "make_new_agent": self.make_new_agent,
-            "edit_stm": self.edit_stm,
+
            
         }
 
@@ -105,33 +106,6 @@ class agent:
         except Exception as e:
             return f"Error activating LTM: {e}"
 
-    def search_memory(self, query):
-        """
-        Searches Long Term Memories by name, description, or content.
-        
-        Args:
-            query (str): The search query. (required)
-        """
-        try:
-            ltms = load_ltm_files(os.path.join(config.BASE_DIR, "ltm"))
-            matches = []
-            query_lower = query.lower()
-            for m in ltms:
-                if (query_lower in m.name.lower() or 
-                    query_lower in m.description.lower() or 
-                    query_lower in m.content.lower()):
-                    matches.append(f"- Name: {m.name}, Description: {m.description}")
-                    # Auto-add visibility
-                    update_ltm_metadata(m.name, self.name, 'visible_to', 'add')
-            
-            if not matches:
-                return f"No memories found matching '{query}'."
-
-            # Reload to reflect visibility changes
-            self.load_my_ltm()
-            return "Found memories (automatically added to visible):\n" + "\n".join(matches)
-        except Exception as e:
-            return f"Error searching memory: {e}"
 
     def remember(self, text):
         """
@@ -281,6 +255,10 @@ class agent:
             agent_name_lower = self.name.lower()
             
             for m in all_ltms:
+                # First check if the agent is explicitly excluded
+                if agent_name_lower in m.except_for:
+                    continue
+            
                 # Check visibility
                 is_visible = False
                 if agent_name_lower in m.visible_to or "all" in m.visible_to:
@@ -309,7 +287,7 @@ class agent:
         
 
         if self.visible_ltms:
-            self.ltm_content += "\n\nOther Available Memories (loadable via tools):\n"
+            self.ltm_content += "\n\nOther Available Memories (loadable via tools or LTM-Manager):\n"
             for m in self.visible_ltms:
                 self.ltm_content += f"- {m.name}: {m.description}\n"
 
@@ -346,7 +324,6 @@ class agent:
         
         """
         return data
-
 
     def download_messages(self):
         try:
