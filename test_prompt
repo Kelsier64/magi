@@ -1,0 +1,2 @@
+做一個專門寫腳本的agent,agent要會把腳本放在../scripts/下 並每寫一個腳本就寫一個腳本使用說明的ltm
+寫一個script write guide的ltm ltm內容包含腳本要放在../scripts/下 常用腳本要寫一個使用說明ltm 不常用的用完就刪除

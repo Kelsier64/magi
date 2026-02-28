@@ -93,3 +93,6 @@ bash tools:
 command
 check_terminal_status
 read_terminal
+
+
+you can add path to another relative ltm

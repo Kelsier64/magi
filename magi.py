@@ -16,6 +16,7 @@ client = AzureOpenAI(
     api_key=AZURE_OPENAI_API_KEY,
     azure_endpoint=AZURE_OPENAI_ENDPOINT,
     api_version="2025-03-01-preview",
+    timeout=60.0,
 )
 
 memory_cleaner_prompt = "Summarize the following conversation history into a concise paragraph using the second person 'You'. Focus on key actions taken, important discoveries, decisions made, and the current state of any ongoing tasks. Do not record trivial details or failed attempts."
@@ -67,7 +68,8 @@ class agent:
         self.description = description
         self.status = "STOPPED"
         self.agent_tools = {
-            "active_ltm": self.active_ltm,
+            # "active_ltm": self.active_ltm,
+            "read_ltm": self.read_ltm,
             "remember": self.remember,
             "summarize_history": self.summarize_history,
             "compress_stm": self.compress_stm,
@@ -88,24 +90,65 @@ class agent:
         self.history = []
         self.ltm_content = ""
         self.stm_content = "\n\nShort-Term Memories:\n"
+        self.load_state()
         self.load_my_ltm()
 
-    def active_ltm(self, name):
+    def get_state_file_path(self):
+        state_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_states")
+        os.makedirs(state_dir, exist_ok=True)
+        return os.path.join(state_dir, f"{self.name}_state.json")
+
+    def save_state(self):
+        state = {
+            "name": self.name,
+            "description": self.description,
+            "status": self.status,
+            "stm": self.stm,
+            "history": self.history,
+            "stm_content": self.stm_content
+        }
+        try:
+            with open(self.get_state_file_path(), "w", encoding="utf-8") as f:
+                json.dump(state, f, ensure_ascii=False, indent=4)
+        except Exception as e:
+            print(f"[Error] Failed to save agent state for {self.name}: {e}")
+
+    def load_state(self):
+        state_file = self.get_state_file_path()
+        if os.path.exists(state_file):
+            try:
+                with open(state_file, "r", encoding="utf-8") as f:
+                    state = json.load(f)
+                    self.description = state.get("description", self.description)
+                    self.status = state.get("status", self.status)
+                    self.stm = state.get("stm", self.stm)
+                    self.history = state.get("history", self.history)
+                    self.stm_content = state.get("stm_content", self.stm_content)
+                print(f"[System] Loaded state for agent '{self.name}' from {state_file}")
+            except Exception as e:
+                print(f"[Error] Failed to load agent state for {self.name}: {e}")
+
+    def read_ltm(self, name):
         """
-        Activates a specific Long Term Memory.
+        Reads the content of a specific Long Term Memory.
         
         Args:
-            name (str): The name of the memory to activate. (required)
+            name (str): The name of the memory to read. (required)
         """
+        ltm_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ltm")
         try:
-            result = update_ltm_metadata(name, self.name, 'active_for', 'add')
-            if "Successfully updated" in result:
-                self.load_my_ltm()
-                return f"{result}\n[System] Memory reloaded successfully."
-            return result
-        except Exception as e:
-            return f"Error activating LTM: {e}"
+            all_ltms = load_ltm_files(ltm_path)
+            agent_name_lower = self.name.lower()
+            
+            for m in all_ltms:
+                if m.name == name or f"{m.name}.md" == name or m.name == f"{name}.md":
+                    if agent_name_lower in m.visible_to or "all" in m.visible_to:
+                        return f"--- Memory: {m.name} ---\nDescription: {m.description}\n\nContent:\n{m.content}"
 
+            
+            return f"Error: LTM '{name}' not found."
+        except Exception as e:
+            return f"Error reading LTM: {e}"
 
     def remember(self, text):
         """
@@ -164,23 +207,37 @@ class agent:
             target_agent.history.append({"role": "user", "name": self.name, "content": message})
             if target_agent.status == "STOPPED":
                 target_agent.status = "RUNNING"
+            target_agent.save_state()
             print(f"[System] Message routed from {self.name} to {recipient}.", flush=True)
             return f"Message sent to agent '{recipient}'."
             
         return f"Error: Agent '{recipient}' not found. Cannot send message."
 
-    def make_new_agent(self, name, description):
+    def make_new_agent(self, name, description, prompt=None):
         """
-        Dynamically instantiates a new worker agent and adds it to the global agents list.
+        Dynamically instantiates a new worker agent.
         
         Args:
             name (str): The name of the new agent to create.
-            description (str): A description indicating the purpose and instructions for the new agent.
+            description (str): A description for others to know what this agent does.
+            prompt (str, optional): The initial prompt/rules for this agent(in markdown format and in english).
         """
         if name in agents:
             return f"Error: Agent with name '{name}' already exists."
             
         try:
+            if prompt:
+                # Create a specific LTM file for this agent before instantiation so it gets loaded
+                ltm_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ltm")
+                os.makedirs(ltm_dir, exist_ok=True)
+                ltm_filename = f"01_{name.lower().replace(' ', '_')}_rule.md"
+                ltm_filepath = os.path.join(ltm_dir, ltm_filename)
+                
+                ltm_content = f"---\nname: {name}_rule\ndescription: Core instructions for {name}\nactive_for: \n- {name}\nvisible_to: \n- {name}\nexcept_for: []\n---\n{prompt}\n"
+                with open(ltm_filepath, "w", encoding="utf-8") as f:
+                    f.write(ltm_content)
+                print(f"[System] Created specific LTM '{ltm_filename}' for '{name}'.", flush=True)
+
             # agent.__init__ automatically registers the new instance in the `agents` dict
             new_agent = agent(name=name, description=description)
             print(f"[System] Agent '{self.name}' spawned new agent '{name}'.", flush=True)
@@ -188,25 +245,22 @@ class agent:
         except Exception as e:
             return f"Error creating new agent: {e}"
 
-    def edit_stm(self, agent_name, new_content):
+    def edit_stm(self, new_content):
         """
-        Edits the entire Short-Term Memory (STM) content of another agent.
+        Edits the entire Short-Term Memory (STM) content of self.
         Warning: This overrides the target agent's entire STM. Use carefully.
         
         Args:
-            agent_name (str): The name of the target agent to edit.
             new_content (str): The new full text content to assign to the target's STM.
         """
-        if agent_name not in agents:
-            return f"Error: Agent '{agent_name}' not found."
             
-        target_agent = agents[agent_name]
         try:
-            target_agent.stm_content = new_content
-            print(f"[System] STM for agent '{agent_name}' was edited by '{self.name}'.", flush=True)
-            return f"Successfully updated STM for agent '{agent_name}'."
+            self.stm_content = new_content
+            self.save_state()
+            print(f"[System] STM for agent '{self.name}' was edited by '{self.name}'.", flush=True)
+            return f"Successfully updated STM for agent '{self.name}'."
         except Exception as e:
-            return f"Error updating STM for agent '{agent_name}': {e}"
+            return f"Error updating STM for agent '{self.name}': {e}"
 
     def get_tools_description(self):
         """Generates a text description of available tools for the system prompt."""
@@ -226,8 +280,10 @@ class agent:
                 
         return description
 
-    def load_my_ltm(self):
-        all_ltms = load_ltm_files(os.path.join(config.BASE_DIR, "ltm"))
+    def load_my_ltm(self, verbose=True):
+        self.ltm_content = "" # Reset context to load cleanly
+        ltm_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ltm")
+        all_ltms = load_ltm_files(ltm_path)
         try:
             self.active_ltms = []
             self.visible_ltms = []
@@ -254,9 +310,11 @@ class agent:
                 elif is_visible:
                      self.visible_ltms.append(m)
 
-            print(f"[System] Loaded {len(self.active_ltms)} active LTMs and found {len(self.visible_ltms)} visible LTMs for {self.name}")
+            if verbose:
+                print(f"[System] Loaded {len(self.active_ltms)} active LTMs and found {len(self.visible_ltms)} visible LTMs for {self.name}")
         except Exception as e:
-            print(f"[System] Failed to load LTM: {e}")
+            if verbose:
+                print(f"[System] Failed to load LTM: {e}")
             self.active_ltms = []
             self.visible_ltms = []
 
@@ -272,6 +330,7 @@ class agent:
                 self.ltm_content += f"- {m.name}: {m.description}\n"
 
     def get_messages(self):
+        self.load_my_ltm(verbose=False)
         # Add Active LTM to context
         system_msg_content = self.ltm_content + self.get_tools_description()
         
@@ -309,7 +368,8 @@ class agent:
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             filename = f"{self.name}_{timestamp}.json"
-            with open(MESSAGE_LOG_PATH + filename, "w", encoding="utf-8") as f:
+            os.makedirs(MESSAGE_LOG_PATH, exist_ok=True)
+            with open(os.path.join(MESSAGE_LOG_PATH, filename), "w", encoding="utf-8") as f:
                 json.dump(self.get_messages(), f, ensure_ascii=False, indent=4)
             print(f"  [System] Messages downloaded to {filename}")
         except Exception as e:
@@ -322,7 +382,7 @@ class agent:
             summary_prompt = [
                 {"role": "system", "content": memory_cleaner_prompt},
                 {"role": "user", "content": f"Current Time: {timestamp}"},
-                {"role": "user", "content": json.dumps(self.get_messages(), ensure_ascii=False)}
+                {"role": "user", "content": json.dumps(self.history, ensure_ascii=False)}
             ]
             summary = ai_request(summary_prompt)
 
@@ -368,9 +428,6 @@ class agent:
     def step(self):
         
         try:
-            # Call LLM with Structured Output
-            if config.SHOW_THOUGHTS:
-                print(f"  [Thinking] Agent is thinking...", flush=True)
             step: AgentStep = client.beta.chat.completions.parse(
                 model="o4-mini",
                 messages=self.get_messages(),
@@ -409,6 +466,7 @@ class agent:
                         
                         # Stop if status is STOPPED (set by wait tool)
                         if self.status == "STOPPED":
+                            self.save_state()
                             return "STOPPED"
 
                         self.history.append({"role": "user", "content": tool_feedback})
@@ -432,7 +490,9 @@ class agent:
         except Exception as e:
             print(f"Error during agent step: {e}")
             self.download_messages()
+            self.save_state()
             return "ERROR"
             
+        self.save_state()
         return "RUNNING"
 

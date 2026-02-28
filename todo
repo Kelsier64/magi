@@ -1,15 +1,20 @@
 stopped => idle
-
-wait(time)  like a clock
-
+wait(time) 
 notify when process done,add pty result to messages
-
 asyncio
-
 update description 
 kill agent
-search memory tool=>call manager to search 
-tool update status   
-status=>active ture false
+tool update status   status=>active ture false
 skills
-messages_log by name
+
+ltm_manager:delete ltm
+multi tool calls   
+reasoning => thought
+
+load_ltm=>read ltm + 1 self.ltm
+
+agent.json
+discoverable
+make_agent(name,description,prompt)
+# Tool Usage # LTM Architecture # Memory Management # make agent instruction
+rememberable

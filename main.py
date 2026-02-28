@@ -57,6 +57,7 @@ def main():
                 # Wake up agent if stopped
                 if my_agent.status == "STOPPED":
                     my_agent.status = "RUNNING"
+                my_agent.save_state()
         
         # 2. Run Agent Step if RUNNING for all agents
         any_running = False

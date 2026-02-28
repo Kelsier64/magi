@@ -217,7 +217,7 @@ class CommandManager:
             result["exit_code"] = session.exit_code
         return result
 
-    def send_input(self, command_id, text=None, terminate=False, wait=2):
+    def send_input(self, command_id, text=None, terminate=False, wait=1):
         """Send input to a command or terminate it."""
         session = self._sessions.get(command_id)
         if not session:
